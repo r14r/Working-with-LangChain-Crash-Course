@@ -1,8 +1,14 @@
 import os
+import openai
 import tempfile
 import streamlit as st
-from langchain_text_splitters import Language, CharacterTextSplitter, RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import CSVLoader, TextLoader, PyPDFLoader, WebBaseLoader
+from langchain.text_splitter import Language
+from langchain.document_loaders import CSVLoader
+from langchain.document_loaders import TextLoader
+from langchain.document_loaders import PyPDFLoader
+from langchain.document_loaders import WebBaseLoader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 st.set_page_config(
     page_title="Learn LangChain | Document Loaders and Text Splitters",

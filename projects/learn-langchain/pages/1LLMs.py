@@ -1,9 +1,7 @@
+import openai
 import streamlit as st
-
-from langchain_community.llms import Ollama
-from langchain_community.llms import DeepInfra
-
-MODEL="gemma3:1b"
+from langchain.llms import OpenAI
+from langchain.llms import DeepInfra
 
 st.set_page_config(
     page_title="Learn LangChain ! Large Language Models",
@@ -16,40 +14,49 @@ st.write('''
 Large Language Models (LLMs) are a type of neural network trained on a vast
 amount of text data, designed to understand and generate human-like text based
 on inputs received, and they are the backbone LangChain. The framework allows us
-to connect and interact with all the most popular LLMs such as Ollama, OpenAI, Cohere,
+to connect and interact with all the most popular LLMs such as OpenAI, Cohere,
 Hugging Face, any model hosted on Replicate, and many more.
 ''')
 
-st.subheader('Ollama LLM')
+st.subheader('OpenAI LLM')
 
 st.write('''
-In this first tutorial we will see a basic example connecting with the Ollama model,
-probably the most popular model at the time of writing. We will
+In this first tutorial we will see a basic example connecting with the OpenAI model
+(aka ChatGPT), probably the most popular model at the time of writing. We will
 instanciate it and perform a basic interaction.
 ''')
 
 st.code('''
-from langchain_community.llms import Ollama
+import openai
+from langchain.llms import OpenAI
 
-llm = Ollama(model=MODEL)
-print(llm.invoke("Explain LangChain in one sentence"))
+llm = OpenAI(openai_api_key=openai_key, temperature=0.5)
+
+response = llm(your_prompt)
+
+print(response)
 ''')
 
 st.info("You need your own keys to run commercial models", icon="ℹ️")
 
-with st.form("ollama_llm"):
+openai_key = st.text_input("OpenAI Api Key")
+
+with st.form("openai_llm"):
+
     prompt = st.text_input("Prompt", placeholder="What is 2+2?")
+
     execute = st.form_submit_button("🚀 Execute")
 
     if execute:
 
-        llm = Ollama(model=MODEL)
-        response = llm.invoke(prompt)
+        llm = OpenAI(openai_api_key=openai_key, temperature=0.5)
+
+        response = llm(prompt)
 
         st.code(response)
 
 st.write('''
-While it may seem trivial to abstract a simple API call to Ollama, this
+While it may seem trivial to abstract a simple API call to OpenAI GPT model, this
 is just a basic example which serves as foundation to the most valuable LangChain
 tools that will allow to build far more complex workflows. For now, let's appreciate
 how we set it up using only 5 lines of code, and how easy is to plug in another model.
@@ -64,6 +71,7 @@ This is why we are specifying the model_id as parameter.
 ''')
 
 st.code('''
+import openai
 from langchain.llms import DeepInfra
 
 llm = DeepInfra(deepinfra_api_token=deepinfra_token, model_id=model_id)

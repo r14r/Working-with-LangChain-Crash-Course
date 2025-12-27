@@ -1,11 +1,9 @@
-import openai
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
-from langchain.memory import ConversationBufferWindowMemory
-from langchain.memory import ConversationTokenBufferMemory
-from langchain.memory import ConversationSummaryMemory
+from langchain_ollama import ChatOllama
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.output_parsers import StrOutputParser
 
 st.set_page_config(
     page_title="Learn LangChain | Memory",
@@ -34,16 +32,28 @@ about the previous message and the LLM will be able to answer them.
 ''')
 
 st.code('''
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
+from langchain_community.chat_message_histories import ChatMessageHistory
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables.history import RunnableWithMessageHistory
 
-llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.0)
+llm = ChatOllama(model="gemma3:1b", temperature=0.0)
 
-memory = ConversationBufferMemory()
-        
-chain = ConversationChain(llm=llm, memory=memory)
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a helpful assistant."),
+    MessagesPlaceholder(variable_name="history"),
+    ("human", "{input}")
+])
 
-chain.predict(input=prompt)
+chain = prompt | llm
+
+chain_with_history = RunnableWithMessageHistory(
+    chain,
+    lambda session_id: ChatMessageHistory(),
+    input_messages_key="input",
+    history_messages_key="history"
+)
+
+response = chain_with_history.invoke({"input": user_input}, config={"configurable": {"session_id": "session1"}})
 ''')
 
 st.subheader('ConversationBufferWindowMemory')
@@ -57,17 +67,17 @@ has to remember, using a simple parameter:
 ''')
 
 st.code('''
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
+# In LCEL, you can limit history by slicing messages in the prompt
+# or by managing the ChatMessageHistory manually
 
-llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.0)
+from langchain_core.messages import trim_messages
 
-# 2 is the number of messages stored in the memory
-memory = ConversationBufferWindowMemory(k=2)
-        
-chain = ConversationChain(llm=llm, memory=memory)
+llm = ChatOllama(model="gemma3:1b", temperature=0.0)
 
-chain.predict(input=prompt)
+# Trim to keep only last 2 messages
+trimmer = trim_messages(max_tokens=2, strategy="last", token_counter=len)
+
+chain_with_trimming = trimmer | prompt | llm
 ''')
 
 st.subheader('ConversationTokenBufferMemory')
@@ -80,13 +90,14 @@ number of tokens:
 ''')
 
 st.code('''
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationTokenBufferMemory
+# Token-based trimming can be done using trim_messages
 
-llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.0)
+from langchain_core.messages import trim_messages
 
-# limit to 50 tokens
-memory = ConversationTokenBufferMemory(llm=llm, max_token_limit=50)
+llm = ChatOllama(model="gemma3:1b", temperature=0.0)
+
+# Trim messages to fit within token limit
+trimmer = trim_messages(max_tokens=50, strategy="last", token_counter=llm.get_num_tokens)
 ''')
 
 st.subheader('ConversationSummaryMemory')
@@ -99,63 +110,70 @@ memory under control while retaining the most importan information.
 ''')
 
 st.code('''
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationSummaryMemory
+# Summary memory can be implemented by periodically summarizing history
+# and storing the summary instead of raw messages
 
-llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.0)
+from langchain_core.prompts import ChatPromptTemplate
 
-# limit to 100 tokens and store a summary
-memory = ConversationSummaryMemory(llm=llm, max_token_limit=100)
-''')
+llm = ChatOllama(model="gemma3:1b", temperature=0.0)
 
-st.info("In the following example, we will use the ConversationChain, another LangChain built-in chain.\
- You can choose the memory type and understand the memory usage by inspecting the memory dump.", icon="ℹ️")
-
-openai_key = st.text_input("OpenAI Api Key")
-
-memory_type = st.selectbox(
-    'Memory Type',
-    ('ConversationBufferMemory', 'ConversationBufferWindowMemory', 'ConversationSummaryMemory')
+summary_prompt = ChatPromptTemplate.from_template(
+    "Summarize this conversation: {history}"
 )
 
-prompt = st.chat_input("Hey, how can I help you today?")
+# Periodically create summaries to compress history
+''')
 
-if prompt:
+st.info("In the following example, we use modern LCEL with RunnableWithMessageHistory.\
+ The chat history is maintained in session state.", icon="ℹ️")
 
-    if "memory_type" in st.session_state and st.session_state.memory_type != memory_type:
+memory_limit = st.selectbox(
+    'Memory Strategy',
+    ('Full History', 'Last 4 Messages', 'Last 2 Messages')
+)
 
-        del st.session_state.conversation
+user_input = st.chat_input("Hey, how can I help you today?")
 
-    if "conversation" not in st.session_state:
-
-        llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.0)
-
-        if memory_type == "ConversationBufferWindowMemory":
-
-            memory = ConversationBufferWindowMemory(k=2)
-
-        elif memory_type == "ConversationSummaryMemory":
-
-            memory = ConversationSummaryMemory(llm=llm, max_token_limit=80)
-
-        else:
-
-            memory = ConversationBufferMemory()
-            
-        
-        chain = ConversationChain(llm=llm, memory=memory)
-        
-        st.session_state.conversation = chain
-
-        st.session_state.memory = memory
-
-        st.session_state.memory_type = memory_type
-
-    response = st.session_state.conversation.predict(input=prompt)
-
+if user_input:
+    # Initialize history if needed
+    if "chat_history" not in st.session_state:
+        st.session_state.chat_history = ChatMessageHistory()
+    
+    if "memory_limit" not in st.session_state or st.session_state.memory_limit != memory_limit:
+        st.session_state.memory_limit = memory_limit
+        st.session_state.chat_history = ChatMessageHistory()
+    
+    # Build the chain
+    llm = ChatOllama(model="gemma3:1b", temperature=0.0)
+    
+    chat_prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a helpful assistant."),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{input}")
+    ])
+    
+    chain = chat_prompt | llm | StrOutputParser()
+    
+    # Get messages based on limit
+    messages = st.session_state.chat_history.messages
+    if memory_limit == 'Last 2 Messages':
+        history_to_use = messages[-2:] if len(messages) > 2 else messages
+    elif memory_limit == 'Last 4 Messages':
+        history_to_use = messages[-4:] if len(messages) > 4 else messages
+    else:
+        history_to_use = messages
+    
+    # Invoke chain
+    response = chain.invoke({"input": user_input, "history": history_to_use})
+    
+    # Store in history
+    st.session_state.chat_history.add_user_message(user_input)
+    st.session_state.chat_history.add_ai_message(response)
+    
     st.write(response)
-
-    st.json(st.session_state.memory.load_memory_variables({}))
+    
+    # Show history
+    st.json({"messages": [f"{m.type}: {m.content}" for m in st.session_state.chat_history.messages]})
 
 st.divider()
 

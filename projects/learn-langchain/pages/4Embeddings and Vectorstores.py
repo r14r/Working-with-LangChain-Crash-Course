@@ -1,5 +1,6 @@
+import openai
 import streamlit as st
-from langchain_ollama import OllamaEmbeddings
+from langchain.embeddings import OpenAIEmbeddings
 
 st.set_page_config(
     page_title="Learn LangChain | Embeddings and Vector Stores",
@@ -19,12 +20,14 @@ As usual, let's make it practical with an example:
 ''')
 
 st.code('''
-from langchain_ollama import OllamaEmbeddings
+from langchain.embeddings import OpenAIEmbeddings
 
-embeddings_model = OllamaEmbeddings(model="gemma3:1b")
+embeddings_model = OpenAIEmbeddings(openai_api_key=openai_key)
 
 response = embeddings_model.embed_query(text)
 ''')
+
+openai_key = st.text_input("OpenAI Api Key")
 
 with st.form("embedding"):
 
@@ -34,7 +37,7 @@ with st.form("embedding"):
 
     if execute:
 
-        embeddings_model = OllamaEmbeddings(model="gemma3:1b")
+        embeddings_model = OpenAIEmbeddings(openai_api_key=openai_key)
 
         response = embeddings_model.embed_query(text)
 

@@ -1,171 +1,140 @@
-import openai
 import streamlit as st
-from langchain.chains import LLMChain
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
-from langchain.chains import SequentialChain
+
+from langchain_ollama import ChatOllama
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableLambda
 
 st.set_page_config(
     page_title="Learn LangChain | Chains",
     page_icon="🔗"
 )
 
-st.header('🔗 Chains')
+st.header("🔗 Chains")
 
-st.write('''
+st.write("""
 Now that we have a good understanding of LLMs and Prompt Templates, we are ready to
-introduce chains, the most important core component of LangChain. Chains are pre-built
-classes that allow us to combine LLMs and Prompts together, with a modular approach
-designed to facilitate the creation of complex language processing pipelines while
-keeping our codebase solid and readable.
+introduce chains, the most important core component of LangChain.
 
-LangChain provides chains for the most
-common operations (routing, sequential execution, document analysis) as well as
-advanced chains for working with custom data, handling memory and so on. Also, we
-will see more advanced LangChain features (tokenizers, transformers, embeddings)
-that are much easier to use with chains.
-''')
+In modern LangChain, the recommended way is to build chains using LCEL (Runnable)
+composition instead of the legacy LLMChain / SequentialChain classes.
+""")
 
-st.subheader('Our first basic Chain')
+st.subheader("Our first basic Chain")
 
-st.code('''
-llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.9)
+st.code("""
+llm = ChatOllama(model="gemma3:1b", temperature=0.9)
 
-prompt = ChatPromptTemplate.from_template(\'''
-I want you to act as a movie creative. Can you come up with an alternative name for the movie {movie}?\
-The name should honor the film story as it is. Please limit your answer to the name only.\
+prompt = ChatPromptTemplate.from_template(\"\"\"
+I want you to act as a movie creative. Can you come up with an alternative name for the movie {movie}?
+The name should honor the film story as it is. Please limit your answer to the name only.
 If you don't know the movie, answer: "I don't know this movie"
-\''')
+\"\"\")
 
-chain = LLMChain(llm=llm, prompt=prompt)
+chain = prompt | llm | StrOutputParser()
 
-response = chain.run(movie)
-''')
+response = chain.invoke({"movie": movie})
+""")
 
-openai_key = st.text_input("OpenAI Api Key")
+# Shared objects (created once; Streamlit reruns are fine)
+llm = ChatOllama(model="gemma3:1b", temperature=0.9)
+parser = StrOutputParser()
+
+basic_prompt = ChatPromptTemplate.from_template("""
+I want you to act as a movie creative. Can you come up with an alternative name for the movie {movie}?
+The name should honor the film story as it is. Please limit your answer to the name only.
+If you don't know the movie, answer: "I don't know this movie"
+""")
+
+basic_chain = basic_prompt | llm | parser
 
 with st.form("basic_chain"):
+    movie_basic = st.text_input("Movie", placeholder="The Green Mile", key="movie_basic")
+    execute_basic = st.form_submit_button("🚀 Execute")
 
-    movie = st.text_input("Movie", placeholder="The Green Mile")
+    if execute_basic:
+        if not movie_basic.strip():
+            st.warning("Please enter a movie title.")
+        else:
+            with st.spinner("Processing your request..."):
+                response_text = basic_chain.invoke({"movie": movie_basic})
+            st.code(response_text)
 
-    execute = st.form_submit_button("🚀 Execute")
-
-    if execute:
-
-    	with st.spinner('Processing your request...'):
-
-	        llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.9)
-
-	        prompt = ChatPromptTemplate.from_template('''
-	        I want you to act as a movie creative. Can you come up with an alternative name for the movie {movie}?\
-	        The name should honor the film story as it is. Please limit your answer to the name only.\
-	        If you don't know the movie, answer: "I don't know this movie"
-	        ''')
-
-	        chain = LLMChain(llm=llm, prompt=prompt)
-
-	        response = chain.run(movie)
-
-	        st.code(response)
-
-st.write('''
+st.write("""
 This basic Chain is not very different from the Prompt Template approach, but let's move forward to
-some more complex example where we can explore the adavntages and the simplicity that chains bring us.
-''')
+a more complex example where we can explore the advantages and simplicity that chains bring us.
+""")
 
-st.subheader('Sequential Chain')
+st.subheader("Sequential Chain")
 
-st.write('''
-What about if we want to use multiple LLMs interactions and use the output of the first run as the
-input for the second chain? This is a perfect scenario to use the Sequential Chain.
+st.write("""
+What about if we want to use multiple LLM interactions and use the output of the first run as the
+input for the second chain? This is a perfect scenario for a sequential pipeline.
 
-In this new example, we will ask our LLM to write a brief advertisement of our newly generated movie
-title, using the movie title as an input.
-''')
+In this example, we ask the LLM to generate an alternative movie title, then we generate a short
+advertisement using that title.
+""")
 
-st.code('''
-llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.9)
+st.code("""
+first_chain  = first_prompt  | llm | StrOutputParser()
+second_chain = second_prompt | llm | StrOutputParser()
 
-first_prompt = ChatPromptTemplate.from_template(\'''
-I want you to act as a movie creative. Can you come up with an alternative name for the movie {movie}?\
-The name should honor the film story as it is. Please limit your answer to the name only.\
-If you don't know the movie, answer: "I don't know this movie"
-\''')
-
-first_chain = LLMChain(llm=llm, prompt=first_prompt, output_key="movie_title")
-
-second_prompt = ChatPromptTemplate.from_template(\'''
-Can you write a short advertisement of this new movie including his title {movie_title}?\
-Please limit it to 20 wprds and return only the advertisement copy.
-\''')
-
-second_chain = LLMChain(llm=llm, prompt=second_prompt, output_key="trailer")
-
-sequential_chain = SequentialChain(
-    chains=[first_chain, second_chain],
-    input_variables=["movie"],
-    output_variables=["movie_title", "trailer"],
-    verbose=True
+pipeline = (
+    first_chain
+    | RunnableLambda(lambda title: {"movie_title": title})
+    | second_prompt
+    | llm
+    | StrOutputParser()
 )
 
-response = sequential_chain(movie)
-''')
+result = pipeline.invoke({"movie": movie})
+""")
+
+first_prompt = basic_prompt
+
+second_prompt = ChatPromptTemplate.from_template("""
+Can you write a short advertisement of this new movie including its title "{movie_title}"?
+Please limit it to 20 words and return only the advertisement copy.
+""")
+
+first_chain = first_prompt | llm | parser
+second_chain = second_prompt | llm | parser
+
+# Compose a sequential pipeline:
+# input {"movie": "..."} -> first_chain returns title string
+# map title -> {"movie_title": title} -> second_chain produces trailer string
+sequential_pipeline = (
+    first_chain
+    | RunnableLambda(lambda title: {"movie_title": title.strip()})
+    | second_chain
+)
 
 with st.form("sequential_chain"):
+    movie_seq = st.text_input("Movie", placeholder="The Green Mile", key="movie_seq")
+    execute_seq = st.form_submit_button("🚀 Execute")
 
-    movie = st.text_input("Movie", placeholder="The Green Mile")
+    if execute_seq:
+        if not movie_seq.strip():
+            st.warning("Please enter a movie title.")
+        else:
+            with st.spinner("Processing your request..."):
+                movie_title = first_chain.invoke({"movie": movie_seq}).strip()
+                trailer = sequential_pipeline.invoke({"movie": movie_seq}).strip()
 
-    execute = st.form_submit_button("🚀 Execute")
-
-    if execute:
-
-    	with st.spinner('Processing your request...'):
-
-	        llm = ChatOpenAI(openai_api_key=openai_key, temperature=0.9)
-
-	        first_prompt = ChatPromptTemplate.from_template('''
-	        I want you to act as a movie creative. Can you come up with an alternative name for the movie {movie}?\
-	        The name should honor the film story as it is. Please limit your answer to the name only.\
-	        If you don't know the movie, answer: "I don't know this movie"
-	        ''')
-
-	        first_chain = LLMChain(llm=llm, prompt=first_prompt, output_key="movie_title")
-
-	        second_prompt = ChatPromptTemplate.from_template('''
-	        Can you write a short advertisement of this new movie including his title {movie_title}?\
-	        Please limit it to 20 wprds and return only the advertisement copy.
-	        ''')
-
-	        second_chain = LLMChain(llm=llm, prompt=second_prompt, output_key="trailer")
-
-	        sequential_chain = SequentialChain(
-			    chains=[first_chain, second_chain],
-			    input_variables=["movie"],
-			    output_variables=["movie_title", "trailer"]
-			)
-
-	        response = sequential_chain(movie)
-
-	        st.json(response)
+            st.json({"movie_title": movie_title, "trailer": trailer})
 
 st.info("Couldn't we just ask for the title and the description in the first chain?", icon="❓")
 
-st.write('''
-We could, but implementing it in steps offer several advantages:
-- better debugging and more control over the LLM responses
-- better responses due to more concise and specific prompts
-- more flexibility if we want dynamically assign new steps to different chains (Router Chain)
-''')
+st.write("""
+We could, but implementing it in steps offers several advantages:
+- Better debugging and more control over the LLM responses
+- Better responses due to more concise and specific prompts
+- More flexibility if we want to dynamically assign steps to different chains (routing)
+""")
 
-st.subheader('To keep in mind:')
+st.subheader("To keep in mind:")
 
-st.write('''
-LangChain provides an impressive amount of chains with several level of complexity and different
-purposes. Studying them all can be overwhelming, but we will be using several of them in our
-hands-on tutorials, making it more fun to learn in a more practical context.
-''')
-
-st.divider()
-
-st.write('A project by [Francesco Carlucci](https://francescocarlucci.com) - \
-Need AI training / consulting? [Get in touch](mailto:info@francescocarlucci.com)')
+st.write("""
+LangChain provides many chain patterns with different purposes. Studying them all can be
+overwhelming, but using them in hands-on projects makes learning practical and efficient.
+""")
