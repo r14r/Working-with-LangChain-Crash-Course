@@ -1,7 +1,9 @@
+.venv
+.envrc
+.set_env.sh
+
 .DS_Store
 secrets.toml
 .streamlit/secrets.toml
-env/
-venv/
 __pycache__/
 
