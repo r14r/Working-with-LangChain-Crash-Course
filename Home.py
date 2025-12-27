@@ -1,72 +1,79 @@
+
 import streamlit as st
+from pathlib import Path
 
-st.set_page_config(
-    page_title="LangChain Crash Course",
-    page_icon="📚"
-)
+def build_navigation():
+    """
+    Build navigation structure by scanning pages subfolders.
+    Groups pages by topic derived from subfolder names.
+    Icons are shown only in navigation group items, not in filenames.
 
-st.header('📚 LangChain Crash Course')
+    Returns:
+        List of st.Page objects organized by topic sections
+    """
+    pages_dir = Path(__file__).parent / "pages"
 
-st.subheader('Build apps with AI and learn by doing!')
+    # Topic configuration with display names and emojis for group navigation
+    # Maps folder names (with numeric prefix) to display info
+    topics = {
+        "00_home": {"name": "🏠 Home", "icon": "🏠", "order": 0},
+        "01_learn": {"name": "📚 Learn", "icon": "📚", "order": 1},
+        "02_projects": {"name": "🚀 Projects", "icon": "🚀", "order": 2},
+    }
 
-st.write('''
-LangChain is a framework to develop AI (artificial intelligence) applications in a
-better and faster way. You can think about it as an abstraction layer designed to
-interact with various LLM (large language models), process and persist data,
-perform complex tasks and take actions using with various APIs. 
-''')
+    # Map specific pages to their individual icons
+    page_icons = {
+        "Thinking": "🧠",
+        "Thinking_Generate": "🧠",
+        "Thinking_Levels": "🧠",
+        "Fill_in_Middle": "💻"
+    }
 
-st.subheader('Core Components')
+    # Build navigation structure
+    navigation_pages = {}
 
-st.write('''
-The main components/tools that LangCHain offers to develop AI applications using LangChain are:
+    # Scan each topic subfolder
+    for topic_folder, topic_info in sorted(topics.items(), key=lambda x: x[1]["order"]):
+        topic_path = pages_dir / topic_folder
 
-- LLMs (Large Language Models)
-- Prompts / Parsers
-- Chains
-- Embeddings / Vectorstores
-- Memory
-- Agents 
+        if not topic_path.exists():
+            continue
 
-LangChain is available for Python and JavaScript, but in this guide we will focus on the Python version.
-''')
+        # Get all Python files in this topic folder
+        py_files = sorted(topic_path.glob("*.py"))
 
-st.subheader('Why LangChain')
+        if py_files:
+            pages = []
+            for py_file in py_files:
+                # Extract title from filename (remove number prefix)
+                title = py_file.stem.split("_", 1)[1] if "_" in py_file.stem else py_file.stem
+                title = title.replace("_", " ")
 
-st.write('''
-In my opinion, any technology that was adopted on a large scale it's been simplified
-in some way. We are all using credit cards online but no one implements credit card
-processing from scratch, most companies uses Stripe/PayPal/3rd party gateways. 90% of
-websites are based on frameworks and not on plain PHP, Python, Ruby, whatever. Most
-of the tech that we use today is an encapsulation layer of some other lower level
-technolology, and the same goes with AI, we are building tools to lower the learning
-curve and allow a faster and smoother adoption. LangChain is one if these tools!
-''')
+                # Get icon for specific pages, otherwise use topic icon
+                icon = page_icons.get(py_file.stem.split("_", 1)[1] if "_" in py_file.stem else "",
+                                     topic_info["icon"])
+                icon = None
 
-st.subheader('To learn better')
+                # Create st.Page for each script
+                page = st.Page(
+                    str(py_file),
+                    title=title,
+                    icon=icon
+                )
+                pages.append(page)
 
-st.write('''
-To better enjoy this LangChain course, you should have a basic understanding of software
-development fundamentals, and ideally some experience with python. If you don't, you can
-check these FreeCodeCamp resources to skill yourself up and come back!
+            # Add this topic's pages to navigation
+            if pages:
+                navigation_pages[topic_info["name"]] = pages
+
+    return navigation_pages
 
 
-- [Learn Python](https://www.freecodecamp.org/news/learn-python-free-python-courses-for-beginners/)
-- [Intro to Programming](https://youtu.be/zOjov-2OZ0E)
-''')
+# -----
 
-st.subheader('Credits')
+# --- Navigation ---
 
-st.write('''
-All the frameworks used in this mini-course belong to their owners:
+pages = build_navigation()
 
-- [LangChain](https://www.langchain.com/)
-- [Streamlit](https://streamlit.io/)
-- [Ollama API](https://docs.ollama.com/api/introduction)
-- [DeepInfra](https://deepinfra.com/)
-''')
-
-st.divider()
-
-st.write('A project by [Francesco Carlucci](https://francescocarlucci.com) - \
-Need AI training / consulting? [Get in touch](mailto:info@francescocarlucci.com)')
+pg = st.navigation(pages)
+pg.run()

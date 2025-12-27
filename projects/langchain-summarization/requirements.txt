@@ -1,7 +1,0 @@
-bs4
-langchain
-langchain-community
-openai
-streamlit
-tiktoken
-validators
