@@ -79,7 +79,7 @@ Respond with just a number."""
                 
                 try:
                     score = int(score_str.strip())
-                except:
+                except (ValueError, AttributeError):
                     score = 5
                 
                 st.metric("Quality Score", f"{score}/10")

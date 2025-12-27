@@ -172,14 +172,16 @@ if st.button("✂️ Split Text"):
                 
                 # Show overlap with previous chunk
                 if i > 0 and chunk_overlap > 0:
-                    # Find overlapping text
+                    # Find overlapping text (limit search to expected overlap size)
                     prev_chunk = chunks[i-1]
                     overlap_text = ""
                     
-                    # Simple overlap detection
-                    for j in range(min(len(prev_chunk), len(chunk))):
+                    # More efficient overlap detection
+                    max_search = min(chunk_overlap + 50, len(prev_chunk), len(chunk))
+                    for j in range(max_search, 10, -1):
                         if prev_chunk[-j:] == chunk[:j]:
                             overlap_text = chunk[:j]
+                            break
                     
                     if overlap_text and len(overlap_text) > 10:
                         st.caption(f"Overlaps with previous: '{overlap_text[:50]}...'")

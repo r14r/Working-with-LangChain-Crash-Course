@@ -232,19 +232,23 @@ else:  # Branch-based Routing
         
         try:
             with st.spinner("Processing..."):
-                # Create branches
+                # Classify once to avoid redundant calls
+                category = classify_input(user_input, model_name)
+                st.info(f"📂 Category: {category}")
+                
+                # Create branches with cached classification
                 math_branch = (
-                    lambda x: "math" in classify_input(x["input"], model_name),
+                    lambda x: category == "math",
                     create_math_chain(model_name)
                 )
                 
                 creative_branch = (
-                    lambda x: "creative" in classify_input(x["input"], model_name),
+                    lambda x: category == "creative",
                     create_creative_chain(model_name)
                 )
                 
                 code_branch = (
-                    lambda x: "code" in classify_input(x["input"], model_name),
+                    lambda x: category == "code",
                     create_code_chain(model_name)
                 )
                 
