@@ -4,6 +4,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from lib.helper_streamlit import select_model
+from lib.helper_streamlit.show_source import show_source
 
 st.set_page_config(
     page_title="WordPress Code Assistant | Learn LangChain",
@@ -49,109 +50,118 @@ chain or display the full thinking process of the LLM.
 # Sidebar configuration
 with st.sidebar:
     st.header("⚙️ Configuration")
+
+# Create tabs
+tab1, tab2 = st.tabs(["📱 App", "📄 Source Code"])
+
+with tab1:
     
-    model = select_model(
-        key="wordpress_model",
-        location="sidebar",
-        label="Ollama Model",
-        default_models=["llama3.2", "gemma2:2b", "qwen2.5", "codellama"]
+        model = select_model(
+            key="wordpress_model",
+            location="sidebar",
+            label="Ollama Model",
+            default_models=["llama3.2", "gemma2:2b", "qwen2.5", "codellama"]
+        )
+
+    task = st.selectbox(
+    	'Select a sample WordPress task',
+    	(
+    		'Store Contact Form 7 submissions as WordPress custom post types',
+    		'Append a text signature to all Gravity Forms email notifications',
+    		'Add a custom text field to WooCommerce products in backend',
+    		'After a WooCommerce order is created, send the order data to a 3rd party via API',
+    		'Create a function to filter the WP search result and only include posts containing the metakey "indexable"',
+    		'Custom'
+    	)
     )
 
-task = st.selectbox(
-	'Select a sample WordPress task',
-	(
-		'Store Contact Form 7 submissions as WordPress custom post types',
-		'Append a text signature to all Gravity Forms email notifications',
-		'Add a custom text field to WooCommerce products in backend',
-		'After a WooCommerce order is created, send the order data to a 3rd party via API',
-		'Create a function to filter the WP search result and only include posts containing the metakey "indexable"',
-		'Custom'
-	)
-)
+    with st.form("code_assistant"):
 
-with st.form("code_assistant"):
+    	custom_task = st.text_input("Write your custom task (available if Selected Task is Custom)", disabled=(task != "Custom"))
 
-	custom_task = st.text_input("Write your custom task (available if Selected Task is Custom)", disabled=(task != "Custom"))
+    	thinking = st.checkbox('Display the full thinking process')
 
-	thinking = st.checkbox('Display the full thinking process')
+    	cross_check = st.checkbox('Execute an additional chain to cross-check the code provided')
 
-	cross_check = st.checkbox('Execute an additional chain to cross-check the code provided')
+    	execute = st.form_submit_button("🚀 Generate Code")
 
-	execute = st.form_submit_button("🚀 Generate Code")
+    	if execute:
 
-	if execute:
+    		with st.spinner('Generating code for you...'):
 
-		with st.spinner('Generating code for you...'):
+    			llm = ChatOllama(temperature=0, model=model)
+    			parser = StrOutputParser()
 
-			llm = ChatOllama(temperature=0, model=model)
-			parser = StrOutputParser()
+    			code_prompt = ChatPromptTemplate.from_template('''
+    			You are a Senior WordPress developer. Your job is to help me writing the best code
+    			to achieve the following: {task}
+    			Please make sure to enclose the PHP code in ```php ... ``` code blocks and describe your thinking
+    			process in detail.
+    			''')
 
-			code_prompt = ChatPromptTemplate.from_template('''
-			You are a Senior WordPress developer. Your job is to help me writing the best code
-			to achieve the following: {task}
-			Please make sure to enclose the PHP code in ```php ... ``` code blocks and describe your thinking
-			process in detail.
-			''')
+    			code_chain = code_prompt | llm | parser
 
-			code_chain = code_prompt | llm | parser
+    			if task == "Custom":
+    				task = custom_task
 
-			if task == "Custom":
-				task = custom_task
+    			code_response = code_chain.invoke({"task": task})
 
-			code_response = code_chain.invoke({"task": task})
+    			# NOTE possible improvement usgin langchain.output_parsers.regex.RegexParser
+    			#code_matches = re.findall(r'<\?php.*?\?>', code_response, re.DOTALL)
+    			code_matches = re.findall(r'```php(.*?)```', code_response, re.DOTALL)
 
-			# NOTE possible improvement usgin langchain.output_parsers.regex.RegexParser
-			#code_matches = re.findall(r'<\?php.*?\?>', code_response, re.DOTALL)
-			code_matches = re.findall(r'```php(.*?)```', code_response, re.DOTALL)
-
-			full_code = []
+    			full_code = []
 			
-			for code in code_matches:
+    			for code in code_matches:
 
-				if len(code) > 20:
+    				if len(code) > 20:
 
-					st.code(code, language="php")
+    					st.code(code, language="php")
 
-					full_code.append(code)
+    					full_code.append(code)
 
-			if thinking:
+    			if thinking:
 
-				st.subheader('Thinking process:')
+    				st.subheader('Thinking process:')
 
-				st.write(code_response)
+    				st.write(code_response)
 
 
-			if cross_check and full_code:
+    			if cross_check and full_code:
 
-				check_prompt = ChatPromptTemplate.from_template('''
-				You are a Senior QA Tester. Your job is to make sure that the following code:
-				{code} is suitable to achieve the following task: {task}
-				If the code is good and suitable, just answer "SUCCESS, the code is good for this task".
-				If the code is not good for any reason, answer "ERROR" and explain why in detail.
-				''')
+    				check_prompt = ChatPromptTemplate.from_template('''
+    				You are a Senior QA Tester. Your job is to make sure that the following code:
+    				{code} is suitable to achieve the following task: {task}
+    				If the code is good and suitable, just answer "SUCCESS, the code is good for this task".
+    				If the code is not good for any reason, answer "ERROR" and explain why in detail.
+    				''')
 
-				check_chain = check_prompt | llm | parser
+    				check_chain = check_prompt | llm | parser
 
-				check_response = check_chain.invoke({"code": ' '.join(full_code), "task": task})
+    				check_response = check_chain.invoke({"code": ' '.join(full_code), "task": task})
 
-				st.subheader('QA on provided code')
+    				st.subheader('QA on provided code')
 
-				st.write(check_response)
+    				st.write(check_response)
 
-with st.expander("Exercise Tips"):
+    with st.expander("Exercise Tips"):
+        st.write('''
+        This demo is probably the most interesting one to expand and improve:
+        - Browse [the code on GitHub](https://github.com/francescocarlucci/wordpress-code-assistant/blob/main/app.py) and make sure you understand it.
+        - Fork the repository to customize the code.
+        - If you are creating code or WordPress plugin giving multiple prompts, adding memory to the LLM can be a huge improvement. Try it!
+        - Brave improvement: add another step to the chain and try to use a LLM to handle the initial task breakdown.
+        ''')
+
+    st.subheader('A note on the cross-check chain')
+
     st.write('''
-    This demo is probably the most interesting one to expand and improve:
-    - Browse [the code on GitHub](https://github.com/francescocarlucci/wordpress-code-assistant/blob/main/app.py) and make sure you understand it.
-    - Fork the repository to customize the code.
-    - If you are creating code or WordPress plugin giving multiple prompts, adding memory to the LLM can be a huge improvement. Try it!
-    - Brave improvement: add another step to the chain and try to use a LLM to handle the initial task breakdown.
+    While is true that most of the times the check will pass if we have a well writen and specific prompt
+    task, this feature is very helpful to handle LLM hallucinations and bad code in response to poorly
+    written prompts. Plus, you can try to plug in a different LLM to test the code making the whole system
+    more reliable.
     ''')
 
-st.subheader('A note on the cross-check chain')
-
-st.write('''
-While is true that most of the times the check will pass if we have a well writen and specific prompt
-task, this feature is very helpful to handle LLM hallucinations and bad code in response to poorly
-written prompts. Plus, you can try to plug in a different LLM to test the code making the whole system
-more reliable.
-''')
+with tab2:
+    st.markdown("### Source Code")
+    show_source(__file__)

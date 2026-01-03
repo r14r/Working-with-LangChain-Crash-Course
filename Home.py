@@ -19,6 +19,9 @@ def build_navigation():
         "00_home": {"name": "🏠 Home", "icon": "🏠", "order": 0},
         "01_learn": {"name": "📚 Learn", "icon": "📚", "order": 1},
         "02_projects": {"name": "🚀 Projects", "icon": "🚀", "order": 2},
+        "11_beginner": {"name": "🌱 Beginner", "icon": "🌱", "order": 11},
+        "12_advanced": {"name": "🌿 Intermediate", "icon": "🌿", "order": 12},
+        "13_expert": {"name": "🌳 Advanced", "icon": "🌳", "order": 13},
     }
 
     # Map specific pages to their individual icons
@@ -38,6 +41,8 @@ def build_navigation():
 
         if not topic_path.exists():
             continue
+
+        print(f"Scanning topic folder: {topic_folder}")
 
         # Get all Python files in this topic folder
         py_files = sorted(topic_path.glob("*.py"))
@@ -61,6 +66,8 @@ def build_navigation():
                     icon=icon
                 )
                 pages.append(page)
+
+                print(f"  Found page: {title} (icon: {icon})")
 
             # Add this topic's pages to navigation
             if pages:
